@@ -69,6 +69,9 @@
   .acc-head span{font-size:9.5px; text-transform:uppercase; color:var(--grey); font-weight:700; text-align:center;}
 
   .insp-row{display:grid; grid-template-columns:1.5fr 0.5fr 1fr 1fr; gap:8px; align-items:center; margin-bottom:8px;}
+  .i2t-checks{display:flex; flex-direction:column; gap:8px; margin:4px 0 10px;}
+  .i2t-chk{display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color:#333; text-transform:none; letter-spacing:0;}
+  .i2t-chk input[type=checkbox]{width:20px; height:20px; flex:none;}
   .insp-row .lbl{font-size:12.5px; font-weight:600; color:#333;}
   .insp-row input[type=checkbox]{width:20px; height:20px; justify-self:center;}
   .insp-row input[type=text]{width:100%; padding:8px; border:1px solid var(--line); border-radius:6px; font-size:13px;}
@@ -624,6 +627,14 @@ function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+
 function esc(s){ return (s===undefined||s===null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function upper(s){ return (s === undefined || s === null) ? "" : String(s).toUpperCase(); }
 function val(key){ const v = currentReport.values[key]; return (v !== undefined && v !== null) ? String(v).toUpperCase() : ""; }
+/* Select-option match: prefer the exact stored value (keeps m\u03A9 vs M\u03A9 distinct), fall back to case-insensitive for older uppercase data */
+function bselMatch(breaker, key, options, o){
+  const raw = breaker.values[key];
+  if(raw === undefined || raw === null || raw === "") return false;
+  return options.includes(raw) ? raw === o : String(raw).toUpperCase() === String(o).toUpperCase();
+}
+function pdfT(s){ return String(s == null ? "" : s).replace(/\u03A9/g, "Ohm"); }
+function bvalRaw(breaker, key){ const v = breaker.values[key]; return (v !== undefined && v !== null) ? String(v) : ""; }
 function bval(breaker, key){ const v = breaker.values[key]; return (v !== undefined && v !== null) ? String(v).toUpperCase() : ""; }
 function liveUppercase(el){
   if(el.tagName === "SELECT") return;
@@ -762,7 +773,7 @@ function bTextField(b, key, label, type){
 function bSelectField(b, key, label, options){
   return `<div class="field"><label>${esc(label)}</label><select data-bkey="${key}" data-brk="${b.id}">
     <option value=""></option>
-    ${options.map(o=>`<option value="${esc(o)}" ${bval(b,key)===o?"selected":""}>${esc(o)}</option>`).join("")}
+    ${options.map(o=>`<option value="${esc(o)}" ${bselMatch(b,key,options,o)?"selected":""}>${esc(o)}</option>`).join("")}
   </select></div>`;
 }
 
@@ -866,7 +877,7 @@ function breakerCardHtml(b, idx){
           <input type="text" data-bkey="${base}_rating" data-brk="${b.id}" value="${esc(bval(b,base+"_rating"))}">
           <select data-bkey="${base}_condition" data-brk="${b.id}">
             <option value=""></option>
-            ${CONDITION_OPTIONS.map(o=>`<option value="${esc(o)}" ${bval(b,base+"_condition")===o?"selected":""}>${esc(o)}</option>`).join("")}
+            ${CONDITION_OPTIONS.map(o=>`<option value="${esc(o)}" ${bselMatch(b,base+"_condition",CONDITION_OPTIONS,o)?"selected":""}>${esc(o)}</option>`).join("")}
           </select>
         </div>`;
       }).join("")}
@@ -884,7 +895,7 @@ function breakerCardHtml(b, idx){
           <input type="text" data-bkey="${base}_found" data-brk="${b.id}" value="${esc(bval(b,base+"_found"))}">
           <select data-bkey="${base}_left" data-brk="${b.id}">
             <option value=""></option>
-            ${CONDITION_OPTIONS.map(o=>`<option value="${esc(o)}" ${bval(b,base+"_left")===o?"selected":""}>${esc(o)}</option>`).join("")}
+            ${CONDITION_OPTIONS.map(o=>`<option value="${esc(o)}" ${bselMatch(b,base+"_left",CONDITION_OPTIONS,o)?"selected":""}>${esc(o)}</option>`).join("")}
           </select>
         </div>`;
       }).join("")}
@@ -909,6 +920,10 @@ function breakerCardHtml(b, idx){
       <div class="row2">
         ${bTextField(b,"trip_ground_fault_time","Ground Fault Time")}
         <div></div>
+      </div>
+      <div class="field i2t-checks">
+        <label class="i2t-chk"><input type="checkbox" data-bkey="trip_short_time_i2t" data-brk="${b.id}" ${b.values["trip_short_time_i2t"]?"checked":""}> I²t ramp used for Short Time</label>
+        <label class="i2t-chk"><input type="checkbox" data-bkey="trip_ground_fault_time_i2t" data-brk="${b.id}" ${b.values["trip_ground_fault_time_i2t"]?"checked":""}> I²t ramp used for Ground Fault Delay</label>
       </div>
       <div class="field"><label>Trip Unit Test Notes</label><textarea data-bkey="trip_unit_test_notes" data-brk="${b.id}" placeholder="Record trip unit test information...">${esc(bval(b,"trip_unit_test_notes"))}</textarea></div>
     </div>
@@ -973,7 +988,7 @@ function breakerCardHtml(b, idx){
           <div class="lbl">${esc(label)}</div>
           <select data-bkey="${base}_status" data-brk="${b.id}">
             <option value=""></option>
-            ${BOTTLE_STATUS_OPTIONS.map(o=>`<option value="${esc(o)}" ${bval(b,base+"_status")===o?"selected":""}>${esc(o)}</option>`).join("")}
+            ${BOTTLE_STATUS_OPTIONS.map(o=>`<option value="${esc(o)}" ${bselMatch(b,base+"_status",BOTTLE_STATUS_OPTIONS,o)?"selected":""}>${esc(o)}</option>`).join("")}
           </select>
         </div>`;
       }).join("")}
@@ -1044,6 +1059,7 @@ function renderEdit(keepScroll){
     </div>
 
     <button class="primary" id="saveBtn">Save Report</button>
+    <button class="secondary" id="repeatSiteBtn">Save and Start New Report for Repeat Site</button>
     <button class="secondary" id="exportBtn">Export as PDF</button>
     <button class="secondary" id="csvBtn">Export as CSV</button>
     <button class="secondary" id="shareBtn">Share Report File (for OneDrive)</button>
@@ -1191,6 +1207,18 @@ function wireEditEvents(){
     flashSaved();
   });
 
+  document.getElementById("repeatSiteBtn").addEventListener("click", async ()=>{
+    await persistCurrent();
+    const JOB_INFO_KEYS = ["customer","owner","job_number","site","date_tested"];
+    const newReport = blankReport();
+    JOB_INFO_KEYS.forEach(k=>{
+      if(r.values[k]) newReport.values[k] = r.values[k];
+    });
+    currentReport = newReport;
+    renderEdit();
+    window.scrollTo(0,0);
+  });
+
   document.getElementById("exportBtn").addEventListener("click", async ()=>{
     await persistCurrent();
     await exportReportPDFDownload(r);
@@ -1329,7 +1357,7 @@ function pdfSubHeader(doc, y, title, margin, pageHeight){
   doc.setFont(undefined, "bold");
   doc.setFontSize(9.5);
   doc.setTextColor(...PDF_ORANGE);
-  doc.text(title.toUpperCase(), margin, y);
+  doc.text(title.split(/(Scale: [^,)]*)/).map((p,i)=> i%2 ? p.replace("Scale:","SCALE:") : p.toUpperCase()).join(""), margin, y); // keep m vs M in scale units
   doc.setTextColor(0,0,0);
   doc.setFont(undefined, "normal");
   return y + 10;
@@ -1442,6 +1470,17 @@ function pdfWrapText(doc, text, x, y, maxWidth, lineHeight, margin, pageHeight){
 async function buildNativePdf(r){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
+  /* Built-in Helvetica has no \u03A9 glyph: print "Ohm" everywhere in the PDF */
+  const _text = doc.text.bind(doc);
+  doc.text = (t, ...a) => _text(Array.isArray(t) ? t.map(pdfT) : pdfT(t), ...a);
+  const _split = doc.splitTextToSize.bind(doc);
+  doc.splitTextToSize = (t, w, o) => _split(pdfT(t), w, o);
+  const _at = doc.autoTable.bind(doc);
+  doc.autoTable = (opts) => {
+    const prev = opts.didParseCell;
+    opts.didParseCell = (d) => { d.cell.text = (d.cell.text || []).map(pdfT); if(prev) prev(d); };
+    return _at(opts);
+  };
   const margin = 36;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -1504,6 +1543,7 @@ async function buildNativePdf(r){
         ["Short", bval(b,"trip_short") || "\u2014", "Short Time", bval(b,"trip_short_time") || "\u2014"],
         ["Instantaneous", bval(b,"trip_instantaneous") || "\u2014", "Ground Fault", bval(b,"trip_ground_fault") || "\u2014"],
         ["Ground Fault Time", bval(b,"trip_ground_fault_time") || "\u2014", "", ""],
+        ["I2t Ramp - Short Time", b.values["trip_short_time_i2t"] ? "YES" : "NO", "I2t Ramp - GF Delay", b.values["trip_ground_fault_time_i2t"] ? "YES" : "NO"],
       ], margin, contentWidth);
       doc.setFont(undefined, "bold"); doc.setFontSize(8.5);
       y = pdfEnsureSpace(doc, y, 12, margin, pageHeight);
@@ -1512,11 +1552,11 @@ async function buildNativePdf(r){
       y = pdfWrapText(doc, bval(b,"trip_unit_test_notes"), margin + 92, y, contentWidth - 92, 11, margin, pageHeight) + 6;
     }
     if(!isBreakerSectionCollapsed(b,"insulation_resistance")){
-      y = pdfSubHeader(doc, y, `Insulation Resistance (Scale: ${bval(b,"insul_scale")||"\u2014"}, Test Voltage: ${bval(b,"insul_test_voltage")||"\u2014"})`, margin, pageHeight);
+      y = pdfSubHeader(doc, y, `Insulation Resistance (Scale: ${pdfT(bvalRaw(b,"insul_scale"))||"\u2014"}, Test Voltage: ${bval(b,"insul_test_voltage")||"\u2014"})`, margin, pageHeight);
       y = pdfPairedRowsTable(doc, y, b, PHASE_PAIR_ITEMS, "insulr", margin, contentWidth);
     }
     if(!isBreakerSectionCollapsed(b,"contact_resistance")){
-      y = pdfSubHeader(doc, y, `Contact Resistance (Scale: ${bval(b,"contact_scale")||"\u2014"}, Test Current: ${bval(b,"contact_test_current")||"\u2014"})`, margin, pageHeight);
+      y = pdfSubHeader(doc, y, `Contact Resistance (Scale: ${pdfT(bvalRaw(b,"contact_scale"))||"\u2014"}, Test Current: ${bval(b,"contact_test_current")||"\u2014"})`, margin, pageHeight);
       y = pdfPairedRowsTable(doc, y, b, CONTACT_RESISTANCE_ITEMS, "cres", margin, contentWidth, "Phase ");
     }
     if(!isBreakerSectionCollapsed(b,"overpotential")){
@@ -1692,9 +1732,11 @@ function buildReportCSVRows(r){
     add("Trip Unit - Instantaneous", bval(b,"trip_instantaneous"));
     add("Trip Unit - Ground Fault", bval(b,"trip_ground_fault"));
     add("Trip Unit - Ground Fault Time", bval(b,"trip_ground_fault_time"));
+    add("Trip Unit - Short Time I2t Ramp", b.values["trip_short_time_i2t"] ? "YES" : "NO");
+    add("Trip Unit - Ground Fault Delay I2t Ramp", b.values["trip_ground_fault_time_i2t"] ? "YES" : "NO");
     add("Trip Unit Test Notes", bval(b,"trip_unit_test_notes"));
 
-    add("Insulation Resistance Scale", bval(b,"insul_scale"));
+    add("Insulation Resistance Scale", bvalRaw(b,"insul_scale"));
     add("Insulation Resistance Test Voltage", bval(b,"insul_test_voltage"));
     PHASE_PAIR_ITEMS.forEach(label=>{
       const base = "insulr_" + slug(label);
@@ -1702,7 +1744,7 @@ function buildReportCSVRows(r){
       add(`Insulation Resistance ${label} (As Left)`, bval(b,base+"_left"));
     });
 
-    add("Contact Resistance Scale", bval(b,"contact_scale"));
+    add("Contact Resistance Scale", bvalRaw(b,"contact_scale"));
     add("Contact Resistance Test Current", bval(b,"contact_test_current"));
     CONTACT_RESISTANCE_ITEMS.forEach(label=>{
       const base = "cres_" + slug(label);
@@ -1856,6 +1898,7 @@ function buildPrintView(r){
           <tr><td class="k">Short</td><td class="v">${esc(bval(b,"trip_short"))||"&mdash;"}</td><td class="k">Short Time</td><td class="v">${esc(bval(b,"trip_short_time"))||"&mdash;"}</td></tr>
           <tr><td class="k">Instantaneous</td><td class="v">${esc(bval(b,"trip_instantaneous"))||"&mdash;"}</td><td class="k">Ground Fault</td><td class="v">${esc(bval(b,"trip_ground_fault"))||"&mdash;"}</td></tr>
           <tr><td class="k">Ground Fault Time</td><td class="v" colspan="3">${esc(bval(b,"trip_ground_fault_time"))||"&mdash;"}</td></tr>
+          <tr><td class="k">I&sup2;t Ramp - Short Time</td><td class="v">${b.values["trip_short_time_i2t"]?"YES":"NO"}</td><td class="k">I&sup2;t Ramp - GF Delay</td><td class="v">${b.values["trip_ground_fault_time_i2t"]?"YES":"NO"}</td></tr>
         </table>
         <p><b>Trip Unit Test Notes:</b> ${esc(bval(b,"trip_unit_test_notes")) || "&mdash;"}</p>` },
       { key: "insulation_resistance", html: `<h3 class="subsect">Insulation Resistance (Scale: ${esc(bval(b,"insul_scale"))||"&mdash;"}, Test Voltage: ${esc(bval(b,"insul_test_voltage"))||"&mdash;"})</h3>${printPairedRowsB(b, PHASE_PAIR_ITEMS, "insulr")}` },
